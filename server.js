@@ -196,7 +196,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
 
 
    app.post('/add_aliment',(req,res)=>{
-    const {nom,quantite,date_achat,note,fournisseur,prix_unit,unit} = req.body;
+    const {nom,quantite,id_exp,date_achat,note,fournisseur,prix_unit,unit} = req.body;
 
     let object = {
         nom:nom,
@@ -205,7 +205,8 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         note:note,
         fournisseur:fournisseur,
         prix_unit:prix_unit,
-        unit:unit
+        unit:unit,
+        id_exp:id_exp
     }
 
     let path = 'aliment';
@@ -311,15 +312,16 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
    })
 
 
-   app.get('/getMateriel',(req,res)=>{
-    postgres('materiel')
-    .select().then(data=>{console.log(data);res.send(data)})
-
+   app.post('/getMateriel',(req,res)=>{
+    console.log("test",req.body)
+    let id_ep = req.body.id_exp
+    postgres('materiel').where({id_exp:id_ep}).select()
+    .then(data=>{console.log(data);res.send(data)})
    })
    
 
    app.post('/add_materiel',(req,res)=>{
-    const {nom,description,fabriquant,image,model,immatriculation,id_type} = req.body;
+    const {nom,description,fabriquant,image,model,immatriculation,id_exp} = req.body;
     derniere_controle_tec = req.body.derniere_controle_tec;
     derniere_assurence = req.body.derniere_assurence;
     
@@ -336,26 +338,18 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     let object = {
         nom:nom,
         description:description,
-        fabriquant:fabriquant,
-        image:image,
         model:model,
         immatriculation:immatriculation,
-        id_type:id_type
+        fabriquant:fabriquant,
+        derniere_controle_tec:derniere_controle_tec,
+        derniere_assurence:derniere_assurence,
+        n_enregistrement:n_enregistrement,
+        propriétaire:propriétaire,
+        id_exp:id_exp
+
     }
     let path = 'materiel';
-    if(derniere_controle_tec){
-         object["derniere_controle_tec"] = derniere_controle_tec;
-         object["derniere_assurence"] = derniere_assurence;
-         object["prix_achat"] = prix_achat;
-         object["date_achat"] = date_achat;
-         object["n_enregistrement"] = n_enregistrement;
-          path = 'materiel_acheté' 
-        };
-    if(prix_location_jour){
-         object["prix_location_jour"] =prix_location_jour;
-         object["propriétaire"] =propriétaire;
-          path = 'materiel_loué' 
-        };
+    
    
    console.log(path)
        postgres(path).returning('id_mat').insert(object).then(data=> res.send({data:data[0]}))
@@ -429,17 +423,22 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     //postgres('materiel').returning('id_mat').insert({image:pathName}).then(data=> console.log({data:data[0]}))
     
 
-    app.get('/getExploitationAnimal',(req,res)=>{
-        postgres('exploitation_ann')
+    app.post('/getExploitationAnimal',(req,res)=>{
+        let rr = req.body.id_exp
+                postgres('exploitation_ann')
         .join('foncier', 'exploitation_ann.id_foncier', 'foncier.id_foncier')
+        
         .select("exploitation_ann.id_exploitation","exploitation_ann.nom","exploitation_ann.date_exploitation","exploitation_ann.id_foncier","exploitation_ann.note","exploitation_ann.batiment","foncier.surface","foncier.id_exp",postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry']))
+        .where(postgres.raw('?? = ??', ['foncier.id_exp',rr]))
         .then(data=>{console.log(data);res.send(data)})
        })
 
-       app.get('/getExploitationVeg',(req,res)=>{
+       app.post('/getExploitationVeg',(req,res)=>{
+        let rr = req.body.id_exp
         postgres('exploitation_veg')
         .join('foncier', 'exploitation_veg.id_foncier', 'foncier.id_foncier')
         .select("exploitation_veg.id_exploitation","exploitation_veg.nom","exploitation_veg.type_source_eau","exploitation_veg.distance_eau","exploitation_veg.vulnérable","exploitation_veg.certification","exploitation_veg.zone_spécifique","exploitation_veg.système_irrigation","exploitation_veg.nom","exploitation_veg.date_exploitation","exploitation_veg.id_foncier","exploitation_veg.note","exploitation_veg.culture_permanent","exploitation_veg.source_eau","exploitation_veg.errige","foncier.surface","foncier.id_exp",postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry']))
+        .where(postgres.raw('?? = ??', ['foncier.id_exp',rr]))
         .then(data=>{console.log(data);res.send(data)})
        })
 
@@ -471,8 +470,8 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
            postgres(path).insert(object).then(res.send("success")).then(console.log)
        })
 
-       app.get('/aliment',(req,res)=>{
-        
+       app.post('/aliment',(req,res)=>{
+       let id_exp = req.body.id_exp
     
         let path = 'aliment';
         postgres("aliment").select()
@@ -481,22 +480,39 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
 
 
        app.post('/add_alimentation',(req,res)=>{
-        const {id_aliment,quantité,date_alimentation,note,id_exploitation,duré,price} = req.body;
-    
+        const {id_aliment,quantité,date_alimentation,note,nom,id_exploitation,duré,price,currentStock} = req.body;
+        let currentStockUpdated;
         let object = {
             id_aliment:id_aliment,
-            quantité:quantité,
+            quantité:(quantité * duré),
             id_exploitation:id_exploitation,
             note:note,
             duré:duré,
             date_alimentation:date_alimentation,
             price:price
         }
+        if(currentStock)currentStockUpdated = Number(currentStock) - (Number(quantité) * duré)
+        if(!currentStock) currentStockUpdated = - (Number(quantite) * duré)
+        postgres("aliment").where({id_aliment:id_aliment}).update({quantite:currentStockUpdated}).then(console.log)
     
         let path = 'alimentation';
            console.log(path);
-           postgres(path).insert(object).then(res.send("success")).then(console.log)
+           postgres(path).insert(object).then(console.log)
+
+           let object2 = {
+            type:"Sortant",
+            Mouvement:"alimentation",
+            note:note,
+            nom:nom,
+            date:date_alimentation,
+            quantite_produit:(quantité * duré),
+            id_exp:req.body.id_exp
+        }
+        path = "historique_échange";
+       console.log(path);
+       postgres(path).insert(object2).then(res.send("success")).then(console.log)
        })
+
 
 
        app.post('/getAnimal',(req,res)=>{
@@ -518,6 +534,22 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         
         let path = 'aliment';
         postgres("traitement").select()
+        .then(data=>{console.log(data);res.send(data)})
+       })
+
+       app.get('/get_aliment',(req,res)=>{
+        
+        let path = 'aliment';
+        postgres("aliment").select()
+        .then(data=>{console.log(data);res.send(data)})
+       })
+
+
+       app.post('/get_aliment1',(req,res)=>{
+           console.log("test",req.body)
+           let id_ep = req.body.id_exp
+        let path = 'aliment';
+        postgres('aliment').where({id_exp:id_ep}).select()
         .then(data=>{console.log(data);res.send(data)})
        })
 
@@ -562,26 +594,74 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        })
 
 
+       app.post('/updateRecolte',(req,res)=>{
+        const {quantité,id_prod} = req.body;
+
+        let object = {
+            id_prod:id_prod,
+            quantité:quantité
+    
+        }
+        
+           postgres('RÉCOLTES').where({id_prod:id_prod}).update(object).then(res.json("pathName")).then(console.log)
+       })
+
+
        
 
 
-       app.get('/getPersonnel1',(req,res)=>{
-        postgres('personnel')
-        .select().then(data=>{console.log(data);res.send(data)})
+       app.post('/getPersonnel1',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('personnel').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+
+       
     
        })
 
     
 
-       app.get('/getEngrais',(req,res)=>{
-        postgres('engrais')
+       app.post('/getEngrais',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('engrais').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+       })
+       app.get('/getProduit',(req,res)=>{
+        postgres('produit')
         .select().then(data=>{console.log(data);res.send(data)})
     
        })
+       app.post('/getRecolte',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('RÉCOLTES').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+    
 
-       app.get('/getmat144',(req,res)=>{
-        postgres('materiel')
-        .select().then(data=>{console.log(data);res.send(data)})
+    
+       })
+       app.post('/historique',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('historique_échange').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+
+      
+       })
+
+       app.post('/getmat144',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('materiel').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+     
     
        })
 
@@ -676,14 +756,23 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
            postgres(path).where({id_mat:req.body.id}).update(object).then(res.json("pathName")).then(console.log)
        })
 
-       app.get('/getPhyto',(req,res)=>{
-        postgres('phytosantaire')
-        .select().then(data=>{console.log(data);res.send(data)})
+       app.post('/getPhyto',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('phytosantaire').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+
     
        })
-       app.get('/getSemence',(req,res)=>{
-        postgres('semence_plants')
-        .select().then(data=>{console.log(data);res.send(data)})
+       app.post('/getSemence',(req,res)=>{
+        console.log("test",req.body)
+        let id_ep = req.body.id_exp
+     
+     postgres('semence_plants').where({id_exp:id_ep}).select()
+     .then(data=>{console.log(data);res.send(data)})
+
+        
     
        })
        app.get('/getEngrais',(req,res)=>{
@@ -748,13 +837,14 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        })
 
 
-       app.post('/add_produit',(req,res)=>{
-        const {nom,unité,prix_uni,myProp, n_enregistrement,composition,fabriquant, culture, azote,phosphore,potassium,composition_n_oligo_elements} = req.body;
+       app.post('/add_produit', async (req,res)=>{
+        const {nom,unité,id_exp ,prix_uni,myProp, n_enregistrement,composition,fabriquant, culture, azote,phosphore,potassium,composition_n_oligo_elements} = req.body;
     
         let object = {
             nom:nom,
             unité:unité,
-            prix_uni:prix_uni
+            prix_uni:prix_uni,
+            id_exp:id_exp
         }
     
         let path = 'produit';
@@ -774,22 +864,33 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         if(myProp === "SEMENCES/PLANTS"){
              object["culture"] =culture;
               path = 'semence_plants' 
+              postgres('RÉCOLTES').insert(object).then(console.log)
             };
        
        console.log(path)
+
            postgres(path).insert(object).then(res.send("success")).then(console.log)
+           
+
        })
+
+      
+       
+
+
+
 
 
        //todo
 
        app.post('/add_operation',(req,res)=>{
-        const {duré,note,prix_totale,travaux} = req.body;
+        const {duré,note,prix_totale,travaux,id_exp} = req.body;
         let object ={
             duré:duré,
             note:note,
             prix_totale:prix_totale,
-            travaux:travaux
+            travaux:travaux,
+            id_exp:id_exp
         }
         postgres('operation').returning('id_operation').insert(object).then(data=> {res.send({data:data[0]}); console.log(data)}).catch(err => console.log(err))
        })
@@ -818,6 +919,9 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        })
 
 
+       
+
+
        app.post('/besoin_materiel',(req,res)=>{
         const {id_operation , id_materiels} = req.body;
 
@@ -841,13 +945,13 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
    })
 
 
-   app.get('/getOperation',async (req,res)=>{
+   app.post('/getOperation',async (req,res)=>{
        var data1 = []
         var data2 = []
         var data3 = []
         var data4 = []
         var data0 = []
-    await postgres("operation").select().then(data => data0 = data)
+    await postgres("operation").where({id_exp:req.body.id_exp}).select().then(data => data0 = data)
 
     await postgres.raw('select * from operation o,besoin_mat b , materiel m where b.id_operation = o.id_operation and m.id_mat = b.id_mat')
     .then(
@@ -937,6 +1041,114 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
    })
 
 
+   app.get('/getCalender',async (req,res)=>{
+    var data1 = []
+    var data2 = []
+    var data3 = []
+    var data4 = []
+    var data0 = []
+    await postgres("operation").select().where(postgres.raw( "travaux LIKE '%Semer%'")).then(data => data0 = data)
+    await postgres.raw('select * from operation o,appliquer_op app , exploitation exp, foncier f  where o.id_operation = app.id_operation and app.id_exploitation = exp.id_exploitation and exp.id_foncier = f.id_foncier')
+    .then(
+    data =>{ 
+
+        data2 = data.rows
+        console.log(data2)
+    
+    })
+
+    await  postgres.raw('select * from operation o, utilise_prod produ, semence_plants prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod')
+            .then(
+                data =>{ 
+        
+                    
+                    data4 =  data.rows
+                
+                })
+                for (let i = 0 ; i<data0.length ; i++){
+                for (let k = 0 ; k<data2.length ; k++){
+                    if(data2[k].id_operation === data0[i].id_operation){
+                        console.log(data2[i])
+                        if(data0[i].content) data0[i].content = data0[i].content +" , "+ data2[k].nom  
+                        else data0[i].content =''+ data2[k].nom  
+                        if(!data0[i].date_application) data0[i].date_application =  data2[k].date_application
+                        
+                    }
+                }
+                for (let f = 0 ; f<data4.length ; f++){
+                    if(data4[f].id_operation === data0[i].id_operation){
+                        console.log(data2[i])
+                        if(data0[i].items) data0[i].items = [...data0[i].items,...[data4[f].culture]] 
+                        else data0[i].items = [data4[f].culture]
+                        
+                    }
+                }
+
+            }
+            var i=0
+            while( i<data0.length-1){
+               
+                
+                if(data0[i].content === data0[i+1].content){
+                    if(!data0[i].items || !data0[i].date_application){
+                        data0.splice((i), 1)
+                        i--
+                    }
+                    else if(!data0[i+1].items || !data0[i+1].date_application){
+                        data0.splice((i+1), 1)
+                    }
+
+                    if(data0[i+1].items && data0[i+1].date_application && data0[i].items && data0[i].date_application )
+                    {
+                    
+                    if(data0[i].items.length){
+                        data0[i].items = [...data0[i].items ,...data0[i+1].items   ]  
+                    }else data0[i].items = [...[data0[i].items] ,...[data0[i+1].items] ] 
+                    
+                    if(data0[i].date_application.length){
+                        data0[i].date_application = [...data0[i].date_application ,...[data0[i+1].date_application]   ]  
+                    }else data0[i].date_application = [...[data0[i].date_application] ,...[data0[i+1].date_application] ] 
+                    
+                    data0.splice((i+1), 1)
+                    i--}
+                }
+               
+                
+                else {
+                    let data13 = data0[i];
+                      data0[i] = data0[i+1]; 
+                      data0[i+1] = data13 
+                      
+                    
+                      
+
+                }
+                       i++     }
+                
+                    var j = 0
+                       while( j<data0.length-1){
+                        if(!data0[j].items || !data0[j].date_application){
+                            data0.splice((j), 1)
+                        
+                        }
+                        j++
+                       }
+                    var l = 0
+                       do{
+                        
+                            data0[l].id = l+1
+                        
+                        
+                        l++
+                       }while( l<data0.length-1)
+
+            res.send(data0)
+    
+
+
+   })
+
+
 
    
    app.get('/getOperation2',(req,res)=>{
@@ -953,7 +1165,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     
    
    app.get('/getOperation1',(req,res)=>{
-    postgres.raw('select * from operation o,appliquer_op app , exploitation exp, foncier f  where o.id_operation = app.id_operation and app.id_exploitation = exp.id_exploitation and exp.id_foncier = f.id_foncier')
+    postgres.raw('select * from operation o, utilise_prod produ, semence_plants prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod')
     .then(
         data =>{ 
 
@@ -983,9 +1195,88 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         
         })
    })
+   app.post('/handleMouvement',(req,res)=>{
+    let {type,id_prod,date,n_facture,Mouvement,quantite,numéro_de_lot,client,note,currentStock,nom,id_aliment,Exploitation} = req.body;
+    let object = {
+        type:type,
+        Mouvement:Mouvement,
+        n_facture:n_facture,
+        numéro_de_lot:numéro_de_lot,
+        client:client,
+        note:note,
+        nom:nom,
+        date:date,
+        quantite_produit:quantite,
+        id_exp:req.body.id_exp
+    }
+    if(type === 'Entrant' && Mouvement !== "Opération" && Exploitation==='Végétal'){
+       
+        if(currentStock)currentStock = Number(currentStock) + Number(quantite)
+        if(!currentStock) currentStock = Number(quantite)
+        postgres("produit").where({id_prod:id_prod}).update({quantité:currentStock}).then(console.log)
+    }
+
+    if(type === 'Entrant' && Mouvement !== "Opération" && Exploitation==='Animal'){
+       
+        if(currentStock)currentStock = Number(currentStock) + Number(quantite)
+        if(!currentStock) currentStock = Number(quantite)
+
+        postgres("aliment").where({id_aliment:id_aliment}).update({quantite:currentStock, date_achat:date}).then(console.log)
+    }
+    if(type === 'Sortant' && Mouvement !== "Opération"){
+        currentStock = Number(currentStock) - Number(quantite)
+        postgres("RÉCOLTES").where({id_prod:id_prod}).update({quantité:currentStock}).then(console.log)
+    }
+
+     let path = "historique_échange";
+       console.log(path);
+       postgres(path).insert(object).then(res.send("success")).then(console.log)
+   })
 
 
+   app.post('/updateProduit',(req,res)=>{
+    const {id_produit , QuantityUpdate,currentQuantity} = req.body;
+    console.log("liuuu",id_produit)
+    console.log("liuuu",QuantityUpdate)
+    console.log("liuuu",currentQuantity)
+      id_produit.forEach((field, index) => {
+          var misajour;
+        if(currentQuantity[index]){
+            console.log()
+             misajour = currentQuantity[index] - QuantityUpdate[index] 
+    }
+        else{
+             misajour = - QuantityUpdate[index] 
+        }
+        
+        postgres("produit").where({id_prod:field}).update({quantité:misajour}).then(console.log)
+    })
+    res.send("success update")
+   })
    
+   app.post('/handleMouvementProduit',(req,res)=>{
+    let {noms,qunatite,type,Mouvement,date,note} = req.body;
+    console.log("noms",noms)
+    noms.forEach((field, index) => {
+        let quant = qunatite[index] 
+        let object={
+            quantite_produit:quant,
+            date:date,
+            nom:field,
+            note:note,
+            type:type,
+            Mouvement:Mouvement,
+            id_exp:req.body.id_exp
+        }
+        let path = "historique_échange";
+       console.log(path);
+       postgres(path).insert(object).then(res.send("success")).then(console.log)
+      
+  })
+
+
+     
+   })
        
        
     
