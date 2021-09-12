@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt-nodejs');
 const cors = require('cors');
 const multer = require('multer');
 var path = require('path');
+const { format } = require('date-fns');
 
 //const upload = multer({dest:'uploads/'})
 const storage = multer.diskStorage({
@@ -49,40 +50,37 @@ app.use(bodyParser.json())
 app.use('/uploads', express.static('uploads'));
 
 // default options
+function SousDays(days) {
+    var result = new Date();
+    result.setDate(result.getDate() - days);
+    return  format(result, 'dd/MM/yyyy');
+  }
 
-const database = {
-    users:[
-        {
-            id:'1',
-            name:'achraf',
-            email:'achrafaouad1@gmail.com',
-            password:"1234"
-        },{
-            id:'2',
-            name:'marwa',
-            email:'achrafaouad2@gmail.com',
-        },
-        {
-            id:'3',
-            name:'ahmed',
-            email:'achrafaouad3@gmail.com',
-        }
-    ],
-    register: [
-        {
-            email:"achrafaouad1@gmail.com",
-            password:""
-        },
-        {
-            email:"achrafaouad2@gmail.com",
-            password:""
-        },
-        {
-            email:"achrafaouad3@gmail.com",
-            password:""
-        }
-    ]
-};
+  function ecart_mois(date_max, date_min)
+  {   
+      var explode_date_min;
+      var explode_date_max;
+      var mois_min;
+      var annee_min;
+      var mois_max;
+      var annee_max;
+      var ecart;
+      
+      explode_date_min = date_min.split('/');
+      explode_date_max = date_max.split('/');
+      
+      mois_min = parseInt(explode_date_min[1]);
+      annee_min = parseInt(explode_date_min[2]);
+      
+      mois_max = parseInt(explode_date_max[1]);
+      annee_max = parseInt(explode_date_max[2]);
+      
+       ecart = ((annee_max - annee_min)*12) - (mois_min) + (mois_max);
+       console.log ('ecart' ,ecart);
+       return ecart
+      
+  }
+
 
 app.get('/',(req, res)=>{
     res.json(database)
@@ -532,6 +530,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
             id_maman:id_maman,
             note:note,
             prix:prix,
+            cout_revien:prix,
             id_exploitation:id_exploitation,
             
         }
@@ -550,9 +549,12 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        })
 
 
-       app.post('/add_alimentation',(req,res)=>{
+       app.post('/add_alimentation',async (req,res)=>{
         const {id_aliment,quantité,date_alimentation,note,nom,id_exploitation,duré,price,currentStock} = req.body;
-        let currentStockUpdated;
+        var currentStockUpdated;
+        var prixUnit;
+        var countAnimal;
+
         let object = {
             id_aliment:id_aliment,
             quantité:(quantité * duré),
@@ -564,11 +566,17 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         }
         if(currentStock)currentStockUpdated = Number(currentStock) - (Number(quantité) * duré)
         if(!currentStock) currentStockUpdated = - (Number(quantite) * duré)
-        postgres("aliment").where({id_aliment:id_aliment}).update({quantite:currentStockUpdated}).then(console.log)
+        await postgres("aliment").where({id_aliment:id_aliment}).update({quantite:currentStockUpdated}).then(console.log)
     
         let path = 'alimentation';
            console.log(path);
            postgres(path).insert(object).then(console.log)
+
+           
+
+
+
+
 
            let object2 = {
             type:"Sortant",
@@ -581,9 +589,42 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         }
         path = "historique_échange";
        console.log(path);
-       postgres(path).insert(object2).then(res.send("success")).then(console.log)
-       })
+       await postgres(path).insert(object2).then(console.log)
 
+
+      //data todo
+
+       await postgres('aliment').where({id_aliment:id_aliment}).select('prix_unit').then(data => {prixUnit=data[0].prix_unit ; console.log(data)})
+
+       await postgres('animal').where({id_exploitation:id_exploitation}).count().then(data =>{
+        console.log("countAnimal",data[0].count)
+        countAnimal = data[0].count
+        })
+
+
+       if(countAnimal){
+       var qq =(quantité * duré * prixUnit) / countAnimal
+
+
+       var animal;
+
+       await postgres('animal').where({id_exploitation:id_exploitation}).select().then(data =>{
+           console.log("countAnimal",data)
+           animal = data
+           })
+           
+        for(let i=0;i<animal.length;i++){
+            if(animal[i].cout_revien)
+           await postgres('animal').where({id_ann:animal[i].id_ann}).update({cout_revien:animal[i].cout_revien+qq})
+            else await postgres('animal').where({id_ann:animal[i].id_ann}).update({cout_revien:qq})
+        }
+
+        res.json('success') 
+       }
+       else
+       res.json("pas d'animal")
+
+       })
 
 
        app.post('/getAnimal',(req,res)=>{
@@ -632,8 +673,11 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        })
 
 
-       app.post('/effectuer_traitement',(req,res)=>{
+       app.post('/effectuer_traitement',async (req,res)=>{
         const {id_trait , id_ann, date_traitement,note,numero_bulletin ,veterinaire , cout} = req.body;
+
+
+        
         let object = {
             id_trait:id_trait ,
             id_ann:id_ann,
@@ -642,13 +686,28 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
             numero_bulletin:numero_bulletin,
             veterinaire:veterinaire,
             cout:cout
-    
-    
         }
+
         let path = 'effectuer_traitement';
            console.log(path);
-           postgres(path).insert(object).then(res.json("success")).then(console.log)
+           postgres(path).insert(object).then(console.log)
+
+           var animal;
+
+           await postgres('animal').where({id_ann:1}).select().then(data =>{
+               console.log("countAnimal",data)
+               animal = data[0].cout_revien
+               })
+               console.log("hello hello",animal)
+                if(animal!=0){
+                await postgres('animal').where({id_ann:id_ann}).update({cout_revien:Number(animal)+ Number(cout) })}
+                else await postgres('animal').where({id_ann:id_ann}).update({cout_revien:Number(cout)})
+
+                res.json(animal + cout)
+           
        })
+
+
        app.post('/update_exploitationVeg',(req,res)=>{
         const {errige,source_eau,culture_permanent,note,date_exploitation,nom,type_source_eau,distance_eau,vulnérable,certification,zone_spécifique,système_irrigation,id_exploitation} = req.body;
         let object = {
@@ -664,8 +723,8 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
             certification:certification,
             zone_spécifique:zone_spécifique,
             système_irrigation:système_irrigation,
-    
         }
+
         let path = 'exploitation_veg';
            console.log(path);
            postgres('exploitation_veg').where({id_exploitation:id_exploitation}).update(object).then(res.json("pathName")).then(console.log)
@@ -1341,8 +1400,8 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         var data4phyto = []
         var data4Eng = []
         var data0 = []
-        var data00 = []
-    await postgres("operation").where({id_exp:req.body.id_exp}).select().then(data => {data0 = data; data00 = data})
+
+    await postgres("operation").where({id_exp:req.body.id_exp}).select().then(data => {data0 = data})
 
     await postgres.raw('select * from operation o,besoin_mat b , materiel m where b.id_operation = o.id_operation and m.id_mat = b.id_mat And o.id_exp=?',[id_exp])
     .then(
@@ -1382,8 +1441,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         await  postgres.raw('select * from operation o, utilise_prod produ, phytosantaire prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod And o.id_exp=?',[id_exp])
             .then(
                 data =>{ 
-        
-                    
+    
                     data4phyto =  data.rows
                 
                 })
@@ -1411,7 +1469,11 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
                 if(data2[k].id_operation === data0[i].id_operation){
                     console.log(data2[i])
                     if(data0[i].nomFoncier) data0[i].nomFoncier = data0[i].nomFoncier +" , "+ data2[k].nom  
+                      
                     else data0[i].nomFoncier =''+ data2[k].nom 
+
+                    if(!data0[i].date_application) data0[i].date_application = data2[k].date_application
+                 
                     
 
                     if(data0[i].surface) data0[i].surface =Math.round( data0[i].surface + data2[k].surface)
@@ -1469,6 +1531,43 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
             i--
         }
     }
+    for(let i=0; i<data0.length ; i++){
+        if(!data0[i].date_application){
+            data0.splice((i), 1)
+            i--
+        }
+    }
+
+
+    //todo date
+    var dateTo = format(new Date(), 'dd/MM/yyyy');
+    var dateFrom = SousDays(req.body.duration);
+    console.log('dateTo',dateTo)
+    console.log('dateFrom',dateFrom)
+    for(let i=0; i<data0.length ; i++){
+        
+        var dateCheck = format(new Date(data0[i].date_application), 'dd/MM/yyyy')
+
+
+        var d1 = dateFrom.split("/");
+        var d2 = dateTo.split("/");
+        var c = dateCheck.split("/");
+
+        var from = new Date(d1[2], parseInt(d1[1])-1, d1[0]);  // -1 because months are from 0 to 11
+        var to   = new Date(d2[2], parseInt(d2[1])-1, d2[0]);
+        var check = new Date(c[2], parseInt(c[1])-1, c[0]);
+
+        if(!(check > from && check < to)){
+            console.log(i,check > from && check < to)
+            data0.splice((i), 1)
+            i--
+
+        }
+
+        
+
+    }
+
 
     var myNewObject = {}
     
@@ -1672,14 +1771,18 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
      }
  }
 
+
+ var coutFix = ecart_mois(dateTo,dateFrom)
+
+
  var CoutFixdata=[]
 
  await postgres.raw('select *,exp.nom as name ,cout.nom as nomCout  from cout_fix cout, exploitation exp where exp.id_exploitation = cout.id_exploitation and cout.id_exp=?',[id_exp]).then(data=>{console.log(data); CoutFixdata = data.rows})
  for(let j = 0;j<data0.length;j++){
  for(i=0 ;i<CoutFixdata.length;i++){
      if(CoutFixdata[i].nom === data0[j].nomFoncier){
-        if(data0[j].priceTot) data0[j].priceTot= Number(data0[j].priceTot) + Number(CoutFixdata[i].montant)
-        else data0[j].priceTot = Number(CoutFixdata[i].montant)
+        if(data0[j].priceTot) data0[j].priceTot= Number(data0[j].priceTot) + Number(CoutFixdata[i].montant) * coutFix
+        else data0[j].priceTot = Number(CoutFixdata[i].montant) * coutFix
      }
  }
 }
@@ -1869,25 +1972,52 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
    
     
    
-   app.get('/getOperation1',(req,res)=>{
-    postgres.raw('select * from operation o, utilise_prod produ, semence_plants prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod')
-    .then(
-        data =>{ 
+   app.post('/getOperation1',async(req,res)=>{
+    //postgres("animal").where({id_exploitation:37}).update({cout_revien:cout_revien +  10}).then(console.log).then(res.send('success'))
+    
 
-            
-            res.send(data.rows)
-        
-        })
+
+     res.send("lyly")
+
+
+
+    
    })
+
+  
 
    app.post('/getOperation3',(req,res)=>{
-     postgres("operation").select().where(postgres.raw( 'travaux LIKE \'%Semer%\' and id_exp = ?',[req.body.id_exp])).then(data => data0 = data)
-    .then(
-        data =>{ 
-            res.send(data.rows)
-        
-        })
+       //let date = req.body.date
+      // let neee = format(new Date(date), 'dd/MM/yyyy')
+
+
+      
+
+      const dateTo = format(new Date(), 'dd/MM/yyyy');
+      
+      let dateFrom = SousDays(7)
+
+      res.send(dateFrom)
+
+
+
+
+
+
+
+        var d1 = dateFrom.split("/");
+        var d2 = dateTo.split("/");
+        var c = dateCheck.split("/");
+
+        var from = new Date(d1[2], parseInt(d1[1])-1, d1[0]);  // -1 because months are from 0 to 11
+        var to   = new Date(d2[2], parseInt(d2[1])-1, d2[0]);
+        var check = new Date(c[2], parseInt(c[1])-1, c[0]);
+
+        console.log(check > from && check < to)
+
+       //res.send(neee)
    })
+   
 
    app.get('/getOperation4',(req,res)=>{
     postgres.raw('select * from operation o, utilise_prod produ, produit prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod')
@@ -1988,10 +2118,8 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
 
    app.post('/calculePrix',async (req,res)=>{
     let {id_exploitation , id_ann} = req.body;
-
     var coutTrait;
     var prix_achat;
-    var sumAliment;
     var countAnimal;
     var prix ;
 
@@ -2003,15 +2131,12 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
         coutTrait = data[0].sum
         })
 
+
        await postgres('animal').where({id_ann:id_ann}).select('prix').then(data =>{
         console.log("prix_achat",data[0].prix)
         prix_achat = data[0].prix
         })
 
-        await postgres('alimentation').where({id_exploitation:id_exploitation}).sum('price').then(data =>{
-            console.log("sumAliment",data[0].sum)
-            sumAliment = data[0].sum
-            })
 
         await postgres('animal').where({id_exploitation:id_exploitation}).count().then(data =>{
             console.log("countAnimal",data[0].count)
@@ -2020,11 +2145,83 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
 
             
 
-            if(countAnimal != 0){prix = coutTrait + prix_achat + (sumAliment/countAnimal);}
+            if(countAnimal != 0){prix = coutTrait + prix_achat }
             else prix = coutTrait + prix_achat;
        res.json(prix)
 
    })
+
+   app.post('/Rapport_resultAnimal',async (req,res)=>{
+    const  {id_exploitation , id_ann,id_exp} = req.body;
+    var exploitation_ann = [];
+    var coutFix;
+    var animal;
+    var sumAliment;
+    var countAnimal;
+    var prix ;
+
+        let path = "effectuer_traitement";
+       console.log(path);
+
+       
+
+       await postgres.raw('select * from foncier f , exploitation_ann exp where exp.id_foncier = f.id_foncier and f.id_exp=?',[id_exp]).then(data=>{console.log(data.rows); exploitation_ann = data.rows  })
+       
+
+       await postgres('animal').select().then(data =>{
+        console.log("prix_achat")
+        animal = data
+        })
+
+       await postgres('cout_fix').where({id_exp:id_exp }).select().then(data =>{
+        console.log("prix_achat")
+        coutFix = data
+        })
+        res.send(coutFix)
+       //animal date?
+       for(let i= 0; i<exploitation_ann.length;i++){
+        var cout = 0;
+           for( let j=0;j<animal.length;j++){
+               if(animal[j].id_exploitation == exploitation_ann[i].id_exploitation ){
+                   
+                   if(animal[j].prix && animal[j].cout_revien) cout +=(animal[j].cout_revien - animal[j].prix) //date achat
+                   else if(animal[j].cout_revien) cout += animal.cout_revien 
+               }
+               exploitation_ann[i].prixTOT = cout
+
+           }
+
+
+       }
+
+       //Cout fix date?
+       for(let i= 0; i<exploitation_ann.length;i++){
+           var cfix = 0;
+           for(let c = 0; c<coutFix.lenght; c++ ){
+               if(coutFix[c].id_exploitation == exploitation_ann[i].id_exploitation ){
+                    if(coutFix[c].montant) cfix += coutFix[c].montant
+               }
+               
+           }
+           exploitation_ann[i].cc = cfix
+        }
+
+    
+
+
+
+
+
+
+       //res.json(exploitation_ann)
+        
+   })
+
+
+
+
+
+
 
 app.listen(3001, ()=>{
     console.log('app is runing on port 3001');
