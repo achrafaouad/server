@@ -1026,6 +1026,33 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
  
     })
 
+       app.post('/uploadExploiteur', upload.single('materiel') , (req,res)=>{
+        console.log(req.file)
+        console.log(req.body.id)
+        const Length = req.file.path.split('\\').length;
+        const pathName = req.file.path.split('\\')[Length-2]+'\\' + req.file.path.split('\\')[Length-1]
+        console.log(pathName)
+        console.log(req.body.id)
+        
+         postgres('exploiteur').where({id:req.body.id}).update({photo:pathName}).then(res.json(pathName)).then(console.log)
+        //postgres('materiel').returning('id_mat').insert({image:pathName}).then(data=> console.log({data:data[0]}))
+        
+ 
+    })
+       app.post('/uploadAnimal', upload.single('materiel') , (req,res)=>{
+        console.log(req.file)
+        console.log(req.body.id)
+        const Length = req.file.path.split('\\').length;
+        const pathName = req.file.path.split('\\')[Length-2]+'\\' + req.file.path.split('\\')[Length-1]
+        console.log(pathName)
+        console.log(req.body.id)
+        
+         postgres('animal').where({id_ann:req.body.id}).update({photo:pathName}).then(res.json(pathName)).then(console.log)
+        //postgres('materiel').returning('id_mat').insert({image:pathName}).then(data=> console.log({data:data[0]}))
+        
+ 
+    })
+
 
     app.post('/update_personnel',(req,res)=>{
         const {id_pers,nom,adress,ville,cin,pays,id_exp,VALIDE_DEPUIS,salaire_hr,salaire_mois,salaire_jr,tva,type,niveau_qualification,certiphyto,conseiller,email,téléphone,code_insee} = req.body;
@@ -2156,9 +2183,13 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
     var exploitation_ann = [];
     var coutFix;
     var animal;
-    var sumAliment;
-    var countAnimal;
-    var prix ;
+    var produire;
+    var traitements;
+    var alimentation ;
+
+
+
+
 
         let path = "effectuer_traitement";
        console.log(path);
@@ -2177,34 +2208,115 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
         console.log("prix_achat")
         coutFix = data
         })
-        res.send(coutFix)
-       //animal date?
+       //animal prix d'achat 
        for(let i= 0; i<exploitation_ann.length;i++){
         var cout = 0;
            for( let j=0;j<animal.length;j++){
                if(animal[j].id_exploitation == exploitation_ann[i].id_exploitation ){
                    
-                   if(animal[j].prix && animal[j].cout_revien) cout +=(animal[j].cout_revien - animal[j].prix) //date achat
-                   else if(animal[j].cout_revien) cout += animal.cout_revien 
+                   if(animal[j].prix && animal[j].date_achat && chequeDate(req.body.duration,animal[j].date_achat)) cout += (animal[j].prix) //date achat
                }
-               exploitation_ann[i].prixTOT = cout
+               exploitation_ann[i].prixtot = -cout
 
            }
+       }
+
+       //animal traitement 
+       await postgres.raw('select * from animal an , effectuer_traitement tr where an.id_ann = tr.id_ann ').then(data=>{console.log(data.rows); traitements = data.rows  })
+
+       for(let i= 0; i<exploitation_ann.length;i++){
+        var cout = 0;
+           for( let j=0;j<traitements.length;j++){
+               if(traitements[j].id_exploitation == exploitation_ann[i].id_exploitation ){
+                   
+                   if(traitements[j].cout && traitements[j].date_traitement && chequeDate(req.body.duration,traitements[j].date_traitement)) {cout += (traitements[j].cout) ; console.log(traitements[j].date_traitement )}//date achat
+               }
+               exploitation_ann[i].prixtot += -cout
+               exploitation_ann[i].traitements = -cout
+
+           }
+
 
 
        }
 
+       //animal traitement 
+       await postgres.raw('select * from alimentation ').then(data=>{console.log(data.rows); alimentation = data.rows  })
+
+       for(let i= 0; i<exploitation_ann.length;i++){
+        var cout = 0;
+           for( let j=0;j<alimentation.length;j++){
+               if(alimentation[j].id_exploitation == exploitation_ann[i].id_exploitation ){
+                   
+                   if(alimentation[j].price && alimentation[j].date_alimentation && chequeDate(req.body.duration,alimentation[j].date_alimentation)) {cout += alimentation[j].price }//date achat
+               }
+               exploitation_ann[i].prixtot += -cout
+               exploitation_ann[i].alimentation = -cout
+
+           }
+
+
+
+       }
+
+
+
+      
+
+       
+       var dateFrom = SousDays(req.body.duration);
+       var dateTo = format(new Date(), 'dd/MM/yyyy');
+       var coutFix = ecart_mois(dateTo,dateFrom);
        //Cout fix date?
        for(let i= 0; i<exploitation_ann.length;i++){
            var cfix = 0;
-           for(let c = 0; c<coutFix.lenght; c++ ){
+           for(let c = 0; c< coutFix.length; c++ ){
                if(coutFix[c].id_exploitation == exploitation_ann[i].id_exploitation ){
-                    if(coutFix[c].montant) cfix += coutFix[c].montant
+                    if(coutFix[c].montant) cfix += (coutFix[c].montant * coutFix)
                }
                
            }
-           exploitation_ann[i].cc = cfix
+           exploitation_ann[i].prixtot += cfix
         }
+
+
+        // quantite Oufs Lait Engrais_naturel
+        await postgres.raw('select * from produire pr , produit  where pr.id_prod = produit.id_prod and produit.id_exp=?',[id_exp]).then(data=>{console.log(data.rows); produire = data.rows  })
+        var eggs = 0;
+        var Lait = 0;
+        var Engrais = 0;
+        var produit = 0;
+       //todo
+        for(let i= 0; i<exploitation_ann.length;i++){
+             eggs = 0;
+             Lait = 0;
+             Engrais = 0;
+             produit = 0;
+            for(let c = 0; c< produire.length; c++ ){
+                if(produire[c].id_exploitation == exploitation_ann[i].id_exploitation ){
+                     if(produire[c].quantité && produire[c].nom === 'Oeuf' &&   chequeDate(req.body.duration,produire[c].date) ) {eggs += produire[c].quantité ; if(produire[c].prix_uni) {produit +=( produire[c].quantité * produire[c].prix_uni )} }
+                     if(produire[c].quantité && produire[c].nom === 'Lait' &&   chequeDate(req.body.duration,produire[c].date) ) {Lait += produire[c].quantité  ; if(produire[c].prix_uni) {produit +=( produire[c].quantité * produire[c].prix_uni )}   }
+                     if(produire[c].quantité && produire[c].nom === 'Engrais_naturel' &&   chequeDate(req.body.duration,produire[c].date) ){ Engrais += produire[c].quantité ;  if(produire[c].prix_uni) {produit +=( produire[c].quantité * produire[c].prix_uni )} }
+                     
+                }
+                
+            }
+            exploitation_ann[i].eggs = eggs
+            exploitation_ann[i].Lait = Lait
+            exploitation_ann[i].Engrais = Engrais
+            exploitation_ann[i].Produit = produit
+            if(exploitation_ann[i].Produit !=0 && exploitation_ann[i].prixtot !=0){exploitation_ann[i].margeNet =  Number(exploitation_ann[i].Produit) + Number(exploitation_ann[i].prixtot)}
+            if(exploitation_ann[i].prixtot !=0){ exploitation_ann[i].Roi = ((exploitation_ann[i].Produit-exploitation_ann[i].prixtot )/exploitation_ann[i].prixtot)*100}
+            console.log("ello ello" + exploitation_ann[i].id_exploitation , exploitation_ann[i].Produit , exploitation_ann[i].prixtot)
+         }
+
+
+        
+
+
+
+
+
 
     
 
@@ -2213,9 +2325,39 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
 
 
 
-       //res.json(exploitation_ann)
+       res.json(exploitation_ann)
         
    })
+
+
+   function chequeDate(duration , date){
+    var dateTo = format(new Date(), 'dd/MM/yyyy');
+    var dateFrom = SousDays(duration);
+    console.log('dateTo',dateTo)
+    console.log('dateFrom',dateFrom)
+    
+        
+        var dateCheck = format(new Date(date), 'dd/MM/yyyy')
+
+
+        var d1 = dateFrom.split("/");
+        var d2 = dateTo.split("/");
+        var c = dateCheck.split("/");
+
+        var from = new Date(d1[2], parseInt(d1[1])-1, d1[0]);  // -1 because months are from 0 to 11
+        var to   = new Date(d2[2], parseInt(d2[1])-1, d2[0]);
+        var check = new Date(c[2], parseInt(c[1])-1, c[0]);
+
+        if(!(check > from && check < to)){
+            return false
+
+        }
+        return true
+
+        
+
+    
+   }
 
 
 
