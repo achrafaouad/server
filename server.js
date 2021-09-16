@@ -1050,7 +1050,6 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
          postgres('animal').where({id_ann:req.body.id}).update({photo:pathName}).then(res.json(pathName)).then(console.log)
         //postgres('materiel').returning('id_mat').insert({image:pathName}).then(data=> console.log({data:data[0]}))
         
- 
     })
 
 
