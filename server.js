@@ -86,52 +86,105 @@ app.get('/',(req, res)=>{
     res.json(database)
 })
 
-app.post('/signin',(req, res)=>{
-    postgres('exploiteur').where(function() {
-        this.where('email', req.body.email)
-      }).then(
-          data => {
-              if(data[0]){
-                bcrypt.compare(req.body.password, data[0].password, function(err, resp) {
-                    if(resp){
-                        return res.json(data[0])
-                    }
-                    if(err){
-                        return res.json("password")
-                    }
+app.post('/signin',async(req, resp)=>{
+    var data0
+   await postgres('exploiteur').where({email:req.body.email}).select().then(data =>{console.log(data[0]) ; data0 = data[0]});
+  
+if(data0){
+   bcrypt.compare(req.body.password, data0.password, function(err, res) {
+       console.log(res)
+    if(res){
+        console.log(data0)
+        resp.json(data0)
+    }
+    else{
+        resp.json("password")
+    }
+});}
+else{
+    resp.json("email")
+}
+})
+
+// app.post('/',(req, res)=>{
+//     console.log(req.body.email , req.body.password)
+//     postgres('exploiteur').where(function() {
+//         this.where('email', req.body.email)
+//       }).then(
+//           data => {
+//               if(data[0]){
+//                 bcrypt.compare(req.body.password, data[0].password, function(err, resp) {
+//                     if(resp){
+//                         console.log(res.json(data[0]))
+//                         res.json(data[0])
+//                     }
+//                     if(err){
+//                         return res.send("password")
+//                     }
     
-                });
-              }
-              else{
-                return res.json("email")
-              }
+//                 });
+//               }
+//               else{
+//                 return res.send("email")
+//               }
             
-            })
+//             })
 
     
-    })
+//     })
 
-    app.post('/get_foncier',(req, res)=>{
+    // app.post('/get_foncier',(req, res)=>{
+    //     //postgres('foncier').select(postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry'])).where('id_foncier',41).then(data => res.send(data));
+    //     // postgres('foncier').where({
+    //     //     id_foncier:39,
+    //     //   }).select('geometry').then((data)=>{res.send(data)})
+    //     postgres('foncier').select('id_foncier','id_exp','nom','surface',postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry'])).where('id_exp',req.body.id).then(data => res.send(data));
+    //            })
+
+    app.post('/get_foncier',async (req, res)=>{
         //postgres('foncier').select(postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry'])).where('id_foncier',41).then(data => res.send(data));
         // postgres('foncier').where({
         //     id_foncier:39,
         //   }).select('geometry').then((data)=>{res.send(data)})
-        postgres('foncier').select('id_foncier','id_exp','nom','surface',postgres.raw('ST_AsGeoJSON(??) AS geometry', ['foncier.geometry'])).where('id_exp',req.body.id).then(data => res.send(data));
-               })
+        var data25 = []
+        await postgres.raw('select *,ST_AsGeoJSON(f.geometry) AS geometryJSON from foncier f, exploitation_ann an where f.id_foncier = an.id_foncier and id_exp = ?',[req.body.id])
+        .then(data => { data25 = data.rows})
+
+        await postgres.raw('select *,ST_AsGeoJSON(f.geometry) AS geometryjson from foncier f, exploitation_veg veg where f.id_foncier = veg.id_foncier and id_exp = ?',[req.body.id])
+        .then(data => { for(let i=0;i<data.rows.length;i++){
+            data25.push(data.rows[i])
+        }})
+
+        res.send(data25) 
 
 
-app.post('/register',(req, res)=>{
+    })
+
+    
+
+
+app.post('/register', async (req, res)=>{
     const {email,password,name,country} = req.body;
+    var testMail = false 
+    await postgres('exploiteur').where({email:email}).select('email').then(
+        data => {if (data.length!=0) {testMail =true}})
+   if(testMail === false){
     bcrypt.hash(password, null, null, function(err, hash) {
         
     postgres('exploiteur').insert({
              nom:name,
             email:email,
-            password:hash,
-            pays:country
+            password:hash,  
     }).then(console.log)
     });
-    res.json(database.users)
+    res.json("success")
+}
+else{
+    res.json("error")
+}
+
+
+    
     })
 
 app.get('/profile/:id' , (req ,res)=>{
@@ -520,11 +573,12 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        
        
        app.post('/add_animal',(req,res)=>{
-        const {gender,id_maman,date_birth,race,sous_famille,note,prix,id_exploitation} = req.body;
+        const {gender,date_achat,id_maman,date_birth,race,sous_famille,note,prix,id_exploitation} = req.body;
     
         let object = {
             gender:gender,
             date_birth:date_birth,
+            date_achat:date_achat,
             race:race,
             sous_famille:sous_famille,
             id_maman:id_maman,
@@ -894,14 +948,15 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
 
        app.post('/update_Animal',(req,res)=>{
            
-        const {id_ann,gender,date_birth,race,sous_famille,note,prix} = req.body;
+        const {id_ann,date_achat,gender,date_birth,race,sous_famille,note,prix} = req.body;
         let object = {
             gender:gender,
             date_birth:date_birth,
             race:race,
             sous_famille:sous_famille,
             note:note,
-            prix:prix
+            prix:prix,
+            date_achat:date_achat
     
         }
         let path = 'exploitation_veg';
