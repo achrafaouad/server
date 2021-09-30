@@ -91,6 +91,7 @@ app.post('/signin',async(req, resp)=>{
    await postgres('exploiteur').where({email:req.body.email}).select().then(data =>{console.log(data[0]) ; data0 = data[0]});
   
 if(data0){
+    
    bcrypt.compare(req.body.password, data0.password, function(err, res) {
        console.log(res)
     if(res){
@@ -202,7 +203,7 @@ app.get('/profile/:id' , (req ,res)=>{
 
 app.post('/add_foncier', (req,res)=>{
 console.log("lolo")
-const {nom,surface,geometry,id_exp,prix_achat,date_achat,prix_loue,proprietaire,date_loue} = req.body;
+const {nom,surface,geometry,id_exp,prix_achat,date_achat,prix_loue,proprietaire,date_loue,type_foncier} = req.body;
 let object = {
     nom:nom,
     surface:surface,
@@ -213,7 +214,7 @@ console.log(geometry)
 
 let path = 'foncier';
 console.log(prix_achat)
-if(prix_achat){
+if(type_foncier ==="possédée"){
      object["date_achat"] = date_achat;
      object["prix_achat"] = prix_achat;
       path = 'foncier_disposé'
@@ -221,7 +222,7 @@ if(prix_achat){
  
     };
 
-if(prix_loue){
+if(type_foncier ==="loué"){
      object["prix_loue"] = prix_loue;
      object["proprietaire"] = proprietaire;
      object["date_loue"] = date_loue;
@@ -279,7 +280,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
 
 
    app.post('/add_exploitation',(req,res)=>{
-    const {nom,date_exploitation,id_foncier,batiment,note,type,errige,culture_permanent,source_eau} = req.body;
+    const {nom,date_exploitation,id_foncier,batiment,note,type,errige,culture_permanent,production,source_eau} = req.body;
 
     let object = {
         nom:nom,
@@ -289,14 +290,14 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     console.log(batiment);
     console.log(errige);
     let path = 'exploitation';
-    if(batiment == "true" || batiment == "false"){
+    if(production ==="animal"){
         object["batiment"] = batiment;
         object["note"] = note; 
         object["type"] = type; 
         path = 'exploitation_ann';
         console.log(path)
         };
-    if(errige == true || errige == false){
+    if(production === "végétale"){
         object["errige"] = errige;
         object["culture_permanent"] = culture_permanent; 
         object["source_eau"] = source_eau; 
@@ -1001,9 +1002,10 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         let id_ep = req.body.id_exp
         var Lait = "Lait"
          var Oeuf = "Oeuf"
-        postgres.raw('select * from produit where produit.nom = \'Oeuf\' or produit.nom = \'Lait\' and id_exp = ?',[id_ep])
+        postgres.raw('select * from produit where (produit.nom = \'Oeuf\' or produit.nom = \'Lait\') AND id_exp = ?',[id_ep])
         .then(
             data =>{ 
+                console.log(data.rows)
            res.json(data.rows)
             })
        })
