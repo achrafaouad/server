@@ -592,7 +592,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     
         let path = 'animal';
            console.log(path);
-           postgres(path).insert(object).then(res.send("success")).then(console.log)
+           postgres(path).insert(object).then(res.json("success")).then(console.log)
        })
 
        app.post('/aliment',(req,res)=>{
@@ -700,7 +700,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
        app.post('/get_traitement',(req,res)=>{
         
         let path = 'aliment';
-        postgres("traitement").select()
+        postgres("traitement").where({id_exp:req.body.id_exp}).select()
         .then(data=>{console.log(data);res.send(data)})
        })
 
@@ -2416,9 +2416,59 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
    }
 
 
+   app.post('/deleteMat',async (req,res)=>{
+       var option =false 
+   await postgres('besoin_mat').where({id_mat:req.body.id}).then(data =>{if(data !=0){option = true} })
+   if(option === false){
+     postgres('materiel')
+    .where({id_mat:req.body.id})
+    .del().then(data => res.json(data)).then(console.log)}
+    else res.json("error")
+   })
+
+   app.post('/deletePers',async (req,res)=>{
+       var option =false
+   await postgres('realise_trav').where({id_pers:req.body.id_pers}).then(data =>{if(data !=0){option = true} })
+   if(option === false){
+     postgres('personnel')
+    .where({id_pers:req.body.id_pers})
+    .del().then(data => res.json(data)).then(console.log)}
+    else res.json("error")
+   })
+
+   app.post('/deleteExpAnn',async (req,res)=>{
+       var option =false 
+    await postgres('exploitation_ann')
+    .where({id_foncier:req.body.id_foncier})
+    .del().then(console.log)
+
+    
+     postgres('foncier')
+    .where({id_foncier:req.body.id_foncier})
+    .del().then(data => res.json(data)).then(console.log)
+  
+   })
+   
+   app.post('/deleteProdveg',async (req,res)=>{
+       var option =false 
+    await postgres('exploitation_veg')
+    .where({id_foncier:req.body.id_foncier})
+    .del().then(console.log)
+
+    
+     postgres('foncier')
+    .where({id_foncier:req.body.id_foncier})
+    .del().then(data => res.json(data)).then(console.log)
+  
+   })
 
 
-
+   app.post('/DeleteAnn',async (req,res)=>{
+       var option =false 
+    await postgres('animal')
+    .where({id_ann:req.body.id_ann})
+    .del().then(data => res.json(data)).then(console.log)
+   })   
 
 
 app.listen(3001, ()=>{
