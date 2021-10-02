@@ -56,6 +56,14 @@ function SousDays(days) {
     return  format(result, 'dd/MM/yyyy');
   }
 
+function AddDays( date) {
+    var result = new Date(date)
+    result.setDate(result.getDate() + 365);
+    console.log("date",format(result, 'dd/MM/yyyy'))
+    // return  format(result, 'dd/MM/yyyy');
+    return result
+  }
+
   function ecart_mois(date_max, date_min)
   {   
       var explode_date_min;
@@ -1476,6 +1484,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
    app.post('/RaportResult',async (req,res)=>{
        const {id_exp} = req.body
        var data1 = []
+       var dataFns = []
         var data2 = []
         var data3 = []
         var data4 = []
@@ -1483,8 +1492,17 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         var data4phyto = []
         var data4Eng = []
         var data0 = []
+        var dataCulture = []
+       
 
     await postgres("operation").where({id_exp:req.body.id_exp}).select().then(data => {data0 = data})
+    await postgres.raw('select *,exp.nom AS nomFoncier from operation o,exploitation exp, utilise_prod produ, semence_plants prod,appliquer_op app  where o.id_operation = produ.id_operation and o.id_operation = app.id_operation and exp.id_exploitation = app.id_exploitation and produ.id_prod = prod.id_prod And o.id_exp=?',[req.body.id_exp])
+    .then(
+        data =>{ 
+
+            dataCulture = data.rows
+        
+        })
 
     await postgres.raw('select * from operation o,besoin_mat b , materiel m where b.id_operation = o.id_operation and m.id_mat = b.id_mat And o.id_exp=?',[id_exp])
     .then(
@@ -1499,7 +1517,15 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         data =>{ 
    
             data2 = data.rows
-            console.log(data2)
+            console.log("hello bro",data2)
+        
+        })
+        //todo
+        await postgres.raw('select * from foncier f  where f.id_exp=?',[id_exp])
+        .then(
+        data =>{ 
+   
+            dataFns = data.rows
         
         })
 
@@ -1507,7 +1533,6 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
         .then(
             data =>{ 
     
-                
                 data3 =  data.rows
             
             })
@@ -1539,8 +1564,16 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
 
      let newff = [];
 
+  
+
+        
+       
+
         for (let i = 0 ; i<data0.length ; i++){
-           
+
+            
+
+
             for (let j = 0 ; j<data1.length ; j++){
                 if(data1[j].id_operation === data0[i].id_operation){
                     console.log(data2[i])
@@ -1566,6 +1599,9 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
                     
                 }
             }
+
+            
+
 
             for (let f = 0 ; f<data4sem.length ; f++){
                 if(data4sem[f].id_operation === data0[i].id_operation){
@@ -1606,7 +1642,10 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
                     }
                 }
             }
+
+            
     }
+
 
     for(let i=0; i<data0.length ; i++){
         if(!data0[i].nomFoncier){
@@ -1687,6 +1726,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
                     Phy: Number(data0[i].Phy) *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[f]])/Number(data0[i].surface)),
                     operateur:data0[i].operateur *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[f]])/Number(data0[i].surface)),
                     matPrice:data0[i].matPrice *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[f]])/Number(data0[i].surface)),
+                    //culture:data0[i].culture
                 }
                 data0.push(object)
          
@@ -1698,6 +1738,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
             data0[i].Phy = Number(data0[i].Phy) *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[0]])/Number(data0[i].surface))
             data0[i].operateur =data0[i].operateur *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[0]])/Number(data0[i].surface))
             data0[i].matPrice = data0[i].matPrice *( Number(myNewObject[data0[i].nomFoncier.split(' , ')[0]])/Number(data0[i].surface))
+            //data0[i].culture=data0[i].culture
             
            }
            
@@ -1710,7 +1751,7 @@ postgres(path).insert(object,'id_foncier').then((data)=>{console.log(data[0]);re
     
 
     
-
+//bon
     
 
         var i =0
@@ -1722,10 +1763,16 @@ for(let i = 0;i<data0.length-1;i++){
             if(data0[i].matPrice && data0[j].matPrice){
                 data0[i].matPrice = Number(data0[i].matPrice) + Number(data0[j].matPrice)
             }
-
+        
             if(!data0[i].matPrice && data0[j].matPrice){
                 data0[i].matPrice =  Number(data0[j].matPrice)
             }
+            // if(data0[i].culture && data0[j].culture){
+            //     data0[i].culture = data0[i].culture+ ", " + data0[j].culture
+            // }
+            // if(!data0[i].culture && data0[j].culture){
+            //     data0[i].culture =  data0[j].culture
+            // }
 
             if(data0[i].Eng && data0[j].Eng){
                 data0[i].Eng = Number(data0[i].Eng) + Number(data0[j].Eng)
@@ -1758,7 +1805,6 @@ for(let i = 0;i<data0.length-1;i++){
                 data0[i].Phy =  Number(data0[j].Phy)
             }
             
-            
             data0.splice((j), 1)
             j--
 
@@ -1767,9 +1813,13 @@ for(let i = 0;i<data0.length-1;i++){
 }
 
 
+
+
+
 var data1 =[]
 var data2 =[]
 var Ndata2 =[]
+
 
 
 await postgres.raw('select * from operation o, utilise_prod produ, rr prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod AND o.travaux LIKE \'%Moissonner%\' And o.id_exp=?',[id_exp])
@@ -1870,6 +1920,15 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
  }
 }
 
+ for(let j = 0;j<data0.length;j++){
+ for(i=0 ;i<dataFns.length;i++){
+     if(dataFns[i].nom === data0[j].nomFoncier){
+        if(!data0[j].surfaceOcupé) data0[j].surfaceOcupé= Number(dataFns[i].surface)
+        
+     }
+ }
+}
+
 
 
  
@@ -1892,9 +1951,28 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
      else data0[i].margeNet =  data0[i].priceTot
  }
 
+//todo
 
  
 
+for(let i = 0;i<data0.length;i++){
+    for (let f = 0 ; f<dataCulture.length ; f++){
+        if(dataCulture[f].nomfoncier === data0[i].nomFoncier){
+            
+            if(dataCulture[f].date_application){
+                console.log("web")
+            if(chequeDate(req.body.duration,AddDays(dataCulture[f].date_application)) || chequeDateIsBiger(AddDays(dataCulture[f].date_application))){
+                
+                if(dataCulture[f].culture) {
+            if(!data0[i].culture) data0[i].culture = dataCulture[f].culture
+            else  data0[i].culture =  data0[i].culture +", " +dataCulture[f].culture
+            
+            
+            }
+        }}
+        }
+    }
+    }
 
 
 
@@ -1903,8 +1981,7 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
 
 
 
-
-        console.log(data0)
+        console.log("hello",dataFns)
         res.json(data0)
         
 
@@ -2042,13 +2119,12 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
 
    var myNewObject = {}
    app.post('/getOperation2',(req,res)=>{
-     postgres('foncier').where({id_exp:req.body.id_exp}).select()
+
+    postgres.raw('select *,exp.nom AS nomFoncier from operation o,exploitation exp, utilise_prod produ, semence_plants prod,appliquer_op app  where o.id_operation = produ.id_operation and o.id_operation = app.id_operation and exp.id_exploitation = app.id_exploitation and produ.id_prod = prod.id_prod And o.id_exp=?',[req.body.id_exp])
     .then(
         data =>{ 
 
-            for(let i = 0 ; i <data.length;i++ ){
-                myNewObject[data[i].nom] = data[i].surface
-            }
+            res.send(data )
         
         })
    })
@@ -2056,11 +2132,16 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
     
    
    app.post('/getOperation1',async(req,res)=>{
-    //postgres("animal").where({id_exploitation:37}).update({cout_revien:cout_revien +  10}).then(console.log).then(res.send('success'))
+    await  postgres.raw('select * from operation o, utilise_prod produ, semence_plants prod,appliquer_op app where o.id_operation = produ.id_operation and o.id_operation = app.id_operation and produ.id_prod = prod.id_prod And o.id_exp=?',[req.body.id_exp])
+    .then(
+        data =>{ 
+
+            res.json(data.rows)
+        })
     
 
 
-     res.send("lyly")
+   
 
 
 
@@ -2103,14 +2184,9 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
    
 
    app.get('/getOperation4',(req,res)=>{
-    postgres.raw('select * from operation o, utilise_prod produ, produit prod where o.id_operation = produ.id_operation and produ.id_prod = prod.id_prod')
-    .then(
-        data =>{ 
 
-            
-            res.send(data.rows)
-        
-        })
+    
+    res.send(AddDays("2021-11-24T23:00:00.000Z"))
    })
    app.post('/handleMouvement',(req,res)=>{
     let {type,id_prod,date,n_facture,Mouvement,quantite,numéro_de_lot,client,note,currentStock,nom,id_aliment,Exploitation} = req.body;
@@ -2389,12 +2465,15 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
    function chequeDate(duration , date){
     var dateTo = format(new Date(), 'dd/MM/yyyy');
     var dateFrom = SousDays(duration);
+
+    console.log("------------------")
     console.log('dateTo',dateTo)
     console.log('dateFrom',dateFrom)
     
+    
         
         var dateCheck = format(new Date(date), 'dd/MM/yyyy')
-
+        console.log('dateCheck',dateCheck)
 
         var d1 = dateFrom.split("/");
         var d2 = dateTo.split("/");
@@ -2413,6 +2492,33 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
         
 
     
+   }
+   function chequeDateIsBiger(date2){
+    var dateTo = format(new Date(date2), 'dd/MM/yyyy');
+    var dateFrom = format(new Date(), 'dd/MM/yyyy');
+
+
+    
+    console.log('dateTo',dateTo)
+    console.log('dateFrom',dateFrom)
+    
+        
+
+
+        var d1 = dateFrom.split("/");
+        var d2 = dateTo.split("/");
+        
+
+        var from = new Date(d1[2], parseInt(d1[1])-1, d1[0]);  // -1 because months are from 0 to 11
+        var to   = new Date(d2[2], parseInt(d2[1])-1, d2[0]);
+        
+
+        if(!(to > from)){
+            return false
+
+        }
+        return true
+
    }
 
 
