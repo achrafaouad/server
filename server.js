@@ -1945,13 +1945,14 @@ await postgres.raw('select * from operation o, utilise_prod produ, rr prod where
     if(data0[i].operateur) {data0[i].operateur = - data0[i].operateur;data0[i].priceTot += data0[i].operateur}
     if(data0[i].Phy) {data0[i].Phy = - data0[i].Phy ; data0[i].priceTot += data0[i].Phy; data0[i].Entrant += data0[i].Phy }
     if(data0[i].Sem){ data0[i].Sem = - data0[i].Sem ; data0[i].priceTot +=data0[i].Sem; data0[i].Entrant +=data0[i].Sem}
-     if(data0[i].priceTot && data0[i].recolt)data0[i].Roi = ((data0[i].recolt-data0[i].priceTot )/data0[i].priceTot)*100
+     if(data0[i].priceTot && data0[i].recolt)data0[i].Roi = (-(data0[i].recolt+data0[i].priceTot )/data0[i].priceTot)*100
      else data0[i].Roi= 0
      if(data0[i].recolt) data0[i].margeNet = Number(data0[i].recolt) + data0[i].priceTot
      else data0[i].margeNet =  data0[i].priceTot
  }
 
 //todo
+
 
  
 
@@ -1974,6 +1975,22 @@ for(let i = 0;i<data0.length;i++){
     }
     }
 
+    if(req.body.hectar === "DH/ha"){
+        for(let i= 0; i<data0.length;i++){
+            data0[i].Eng =  data0[i].Eng / data0[i].surfaceOcupé
+            data0[i].operateur =  data0[i].operateur / data0[i].surfaceOcupé
+            data0[i].recolt =  data0[i].recolt / data0[i].surfaceOcupé
+            data0[i].priceTot =  data0[i].priceTot / data0[i].surfaceOcupé
+            data0[i].Entrant =  data0[i].Entrant / data0[i].surfaceOcupé
+            data0[i].margeNet =  data0[i].margeNet / data0[i].surfaceOcupé
+            data0[i].Phy =  data0[i].Phy / data0[i].surfaceOcupé
+            data0[i].Sem =  data0[i].Sem / data0[i].surfaceOcupé
+            data0[i].matPrice =  data0[i].matPrice / data0[i].surfaceOcupé
+            data0[i].Roi = (-(data0[i].recolt+data0[i].priceTot )/data0[i].priceTot)*100
+
+        }
+        
+    }
 
 
 
@@ -1981,7 +1998,6 @@ for(let i = 0;i<data0.length;i++){
 
 
 
-        console.log("hello",dataFns)
         res.json(data0)
         
 
